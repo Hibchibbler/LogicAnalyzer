@@ -57,8 +57,7 @@ module LogicCapture(
                     if (state == 1'b0) begin
                         //Iterate through each signal on the bus. comparing chX previous, and chX current.
                         for (i = 4'b0;i < 4'b1000;i=i+1) begin :for_loop
-                            if (data_in_reg_prev[i] > data_in_reg[i] ||
-                                data_in_reg_prev[i] < data_in_reg[i]) begin
+                            if (data_in_reg_prev[i] ^ data_in_reg[i]) begin
                                 //Hard sample - Write to BRAM
                                 //Rising or Falling edge on channel i   
                                 //next clock cycle, this state machine will deassert en and we.                         
