@@ -48,13 +48,15 @@ begin
     #(20) control[0] <= 1'b1;
     #(10) datain <= 8'd3;
     #(4)  datain <= 8'd1;
-    #(2)  datain <= 8'd2;
+    #(4)  datain <= 8'd2;
     #(4)  datain <= 8'd1;
     #(4)  datain <= 8'd7;
     #(4)  datain <= 8'd123;
     #(10) datain <= 8'd1;
     #(2)  datain <= 8'd33;
-    #(50)  $finish;
+    #(4)  datain <= 8'd2;
+    #(6)  datain <= 8'd0;
+    #(10)  $finish;
 end
 
 
