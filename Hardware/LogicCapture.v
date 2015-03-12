@@ -62,63 +62,7 @@ module LogicCapture(
                     //The "main" state - sample. if transition, write to BRAM.
                     if (state == 1'b0) begin
                         //Iterate through each signal on the bus. comparing chX previous, and chX current.
-                        if (data_in_reg_prev[0] ^ data_in_reg[0]) begin
-                            address      = BRAM_WR_Addr;
-                            dataout      = datain;
-                            en           = 1;
-                            we           = 1;
-                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
-                            state        <= 1'b1;
-                        end else
-                        if (data_in_reg_prev[1] ^ data_in_reg[1]) begin
-                            address      = BRAM_WR_Addr;
-                            dataout      = datain;
-                            en           = 1;
-                            we           = 1;
-                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
-                            state        <= 1'b1;
-                        end else
-                        if (data_in_reg_prev[2] ^ data_in_reg[2]) begin
-                            address      = BRAM_WR_Addr;
-                            dataout      = datain;
-                            en           = 1;
-                            we           = 1;
-                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
-                            state        <= 1'b1;
-                        end else
-                        if (data_in_reg_prev[3] ^ data_in_reg[3]) begin
-                            address      = BRAM_WR_Addr;
-                            dataout      = datain;
-                            en           = 1;
-                            we           = 1;
-                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
-                            state        <= 1'b1;
-                        end else
-                        if (data_in_reg_prev[4] ^ data_in_reg[4]) begin
-                            address      = BRAM_WR_Addr;
-                            dataout      = datain;
-                            en           = 1;
-                            we           = 1;
-                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
-                            state        <= 1'b1;
-                        end else
-                        if (data_in_reg_prev[5] ^ data_in_reg[5]) begin
-                            address      = BRAM_WR_Addr;
-                            dataout      = datain;
-                            en           = 1;
-                            we           = 1;
-                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
-                            state        <= 1'b1;
-                        end else
-                        if (data_in_reg_prev[6] ^ data_in_reg[6]) begin
-                            address      = BRAM_WR_Addr;
-                            dataout      = datain;
-                            en           = 1;
-                            we           = 1;
-                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
-                            state        <= 1'b1;
-                        end else
-                        if (data_in_reg_prev[7] ^ data_in_reg[7]) begin
+                        if (data_in_reg_prev ^ data_in_reg) begin
                             address      = BRAM_WR_Addr;
                             dataout      = datain;
                             en           = 1;
