@@ -44,18 +44,22 @@ LogicCapture captureModule(
 
 initial
 begin
-    #(5)  resetn <= 1'b1;
+    #(5)  resetn     <= 1'b1;
     #(20) control[0] <= 1'b1;
-    #(10) datain <= 8'd3;
-    #(4)  datain <= 8'd1;
-    #(4)  datain <= 8'd2;
-    #(4)  datain <= 8'd1;
-    #(4)  datain <= 8'd7;
-    #(4)  datain <= 8'd123;
-    #(10) datain <= 8'd1;
-    #(2)  datain <= 8'd33;
-    #(4)  datain <= 8'd2;
-    #(6)  datain <= 8'd0;
+    #(10) datain     <= 8'd3;
+    #(4)  datain     <= 8'd1;
+    #(4)  datain     <= 8'd2;
+    #(4)  datain     <= 8'd1;
+    #(4)  datain     <= 8'd7;
+    #(4)  datain     <= 8'd123;
+    #(10) datain     <= 8'd1;
+    #(2)  datain     <= 8'd33;
+    #(4)  datain     <= 8'd2;
+    #(6)  datain     <= 8'd0;
+    #(4)  control[1] <= 1'b1;
+          datain     <= 8'd3;
+    #(4)  datain     <= 8'd45;
+    #(16) datain     <= 8'd13;
     #(10)  $finish;
 end
 

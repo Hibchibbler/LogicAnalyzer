@@ -21,7 +21,6 @@ module LogicCapture(
 
     reg started;
     
-    reg [3:0] i;
     reg state;//0 sampling, 1 writing to BRAM
 	
 	//--------------//
@@ -40,7 +39,6 @@ module LogicCapture(
                 en               <= 1'b0;
                 address          <= 18'd0;
                 dataout          <= 8'd0;
-                i                <= 1'b0;
             end else begin
                 //Store last sample, and get new one for comparison.
                 data_in_reg_prev = data_in_reg;
