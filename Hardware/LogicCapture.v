@@ -61,7 +61,8 @@ module LogicCapture(
                 if(started ==1) begin //We are good to go
                     //The "main" state - sample. if transition, write to BRAM.
                     if (state == 1'b0) begin
-                        //Iterate through each signal on the bus. comparing chX previous, and chX current.
+                        //Compare previous sample to current sample and
+                        //record if there is a change
                         if (data_in_reg_prev ^ data_in_reg) begin
                             address      = BRAM_WR_Addr;
                             dataout      = datain;
@@ -71,29 +72,30 @@ module LogicCapture(
                             state        <= 1'b1;
                         end else
                         begin
-                            en   <= 0;
-                            we   <= 0;
-                            address <= address;
-                            dataout <= dataout;
+                            en           <= 0;
+                            we           <= 0;
+                            address      <= address;
+                            dataout      <= dataout;
                             BRAM_WR_Addr <= BRAM_WR_Addr;
                             state        <= 1'b0;
                         end
+                        //Determine which channels falling & rising edges happened on
+                        falling_edges = (~data_in_reg & data_in_reg_prev);
+                        rising_edges  = (data_in_reg & ~data_in_reg_prev);
+                        //Check if buffer is full
                         if (BRAM_WR_Addr == 18'd262143) begin
                            status[0]    <= 1'b0;
                            started      <= 0;                                
                            BRAM_WR_Addr <= 0;
-                       end
-                       //Determine which channels falling & rising edges happend on
-                       falling_edges = (~data_in_reg & data_in_reg_prev);
-                       rising_edges  = (data_in_reg & ~data_in_reg_prev);
+                        end
                     end else
                     //Deassert "en/we" state
                     //This state exists so that if one clock cycle (10 ns), is to quick too deassert the en/we lines
                     //we can easily adjust it by changing how or when we get to this state.
                     if (state == 1'b1) begin
-                        en <=0;
-                        we <=0;
-                        state <= 1'b0;
+                        en            <= 0;
+                        we            <= 0;
+                        state         <= 1'b0;
                         falling_edges <= 8'd0;
                         rising_edges  <= 8'd0;
                     end
