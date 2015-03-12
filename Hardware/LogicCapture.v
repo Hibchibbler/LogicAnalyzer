@@ -59,28 +59,83 @@ module LogicCapture(
                     //The "main" state - sample. if transition, write to BRAM.
                     if (state == 1'b0) begin
                         //Iterate through each signal on the bus. comparing chX previous, and chX current.
-                        for (i = 4'b0;i < 4'b1000;i=i+1) begin :for_loop
-                            if (data_in_reg_prev[i] ^ data_in_reg[i]) begin
-                                //Hard sample - Write to BRAM
-                                //Rising or Falling edge on channel i   
-                                //next clock cycle, this state machine will deassert en and we.                         
-                                en           <= 1;
-                                we           <= 1;
-                                address      <= BRAM_WR_Addr;
-                                BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;                            
-                                dataout      <= datain;
-                                
-                                if (BRAM_WR_Addr == 18'd262143) begin
-                                    status[0]    <= 1'b0;
-                                    started      <= 0;                                
-                                    BRAM_WR_Addr <= 0;
-                                end
-                                
-                                state <= 1'b1;
-                                //We only need one of the signals to transition. no need to check the rest.
-                                disable for_loop;
-                            end
+                        if (data_in_reg_prev[0] ^ data_in_reg[0]) begin
+                            address      = BRAM_WR_Addr;
+                            dataout      = datain;
+                            en           = 1;
+                            we           = 1;
+                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
+                            state        <= 1'b1;
+                        end else
+                        if (data_in_reg_prev[1] ^ data_in_reg[1]) begin
+                            address      = BRAM_WR_Addr;
+                            dataout      = datain;
+                            en           = 1;
+                            we           = 1;
+                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
+                            state        <= 1'b1;
+                        end else
+                        if (data_in_reg_prev[2] ^ data_in_reg[2]) begin
+                            address      = BRAM_WR_Addr;
+                            dataout      = datain;
+                            en           = 1;
+                            we           = 1;
+                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
+                            state        <= 1'b1;
+                        end else
+                        if (data_in_reg_prev[3] ^ data_in_reg[3]) begin
+                            address      = BRAM_WR_Addr;
+                            dataout      = datain;
+                            en           = 1;
+                            we           = 1;
+                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
+                            state        <= 1'b1;
+                        end else
+                        if (data_in_reg_prev[4] ^ data_in_reg[4]) begin
+                            address      = BRAM_WR_Addr;
+                            dataout      = datain;
+                            en           = 1;
+                            we           = 1;
+                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
+                            state        <= 1'b1;
+                        end else
+                        if (data_in_reg_prev[5] ^ data_in_reg[5]) begin
+                            address      = BRAM_WR_Addr;
+                            dataout      = datain;
+                            en           = 1;
+                            we           = 1;
+                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
+                            state        <= 1'b1;
+                        end else
+                        if (data_in_reg_prev[6] ^ data_in_reg[6]) begin
+                            address      = BRAM_WR_Addr;
+                            dataout      = datain;
+                            en           = 1;
+                            we           = 1;
+                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
+                            state        <= 1'b1;
+                        end else
+                        if (data_in_reg_prev[7] ^ data_in_reg[7]) begin
+                            address      = BRAM_WR_Addr;
+                            dataout      = datain;
+                            en           = 1;
+                            we           = 1;
+                            BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;
+                            state        <= 1'b1;
+                        end else
+                        begin
+                            en   <= 0;
+                            we   <= 0;
+                            address <= address;
+                            dataout <= dataout;
+                            BRAM_WR_Addr <= BRAM_WR_Addr;
+                            state        <= 1'b0;
                         end
+                        if (BRAM_WR_Addr == 18'd262143) begin
+                           status[0]    <= 1'b0;
+                           started      <= 0;                                
+                           BRAM_WR_Addr <= 0;
+                       end
                     end else
                     //Deassert "en/we" state
                     //This state exists so that if one clock cycle (10 ns), is to quick too deassert the en/we lines
