@@ -68,7 +68,7 @@ module LogicCapture(
                                 BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;                            
                                 dataout <= datain;
                                 
-                                if (BRAM_WR_Addr == 18'd262144) begin
+                                if (BRAM_WR_Addr == 18'd262143) begin
                                     status[0]    <= 1'b0;
                                     started      <= 0;                                
                                     BRAM_WR_Addr <= 0;
