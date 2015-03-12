@@ -32,14 +32,14 @@ module LogicCapture(
 	always @(posedge clk or negedge resetn)
         begin
             if(resetn == 1'b0) begin
-                status <= 0; //clear status register 
-                data_in_reg <=0;
+                status           <= 0; //clear status register 
+                data_in_reg      <= 0;
                 data_in_reg_prev <= 0;
-                BRAM_WR_Addr <=0;
-                started <= 0;
-                state <= 1'b0;
+                BRAM_WR_Addr     <=0;
+                started          <= 0;
+                state            <= 1'b0;
             end else begin
-	    //Store last sample, and get new one for comparison.
+                //Store last sample, and get new one for comparison.
                 data_in_reg_prev = data_in_reg;
                 data_in_reg      = datain;
             
@@ -68,9 +68,9 @@ module LogicCapture(
                                 BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;                            
                                 dataout <= datain;
                                 
-                                if (BRAM_WR_Addr > 17'd262144) begin
-                                    status[0] <= 1'b0;
-                                    started <= 0;                                
+                                if (BRAM_WR_Addr == 18'd262144) begin
+                                    status[0]    <= 1'b0;
+                                    started      <= 0;                                
                                     BRAM_WR_Addr <= 0;
                                 end
                                 
