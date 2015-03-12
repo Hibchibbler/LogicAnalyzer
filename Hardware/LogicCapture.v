@@ -36,6 +36,11 @@ module LogicCapture(
                 BRAM_WR_Addr     <= 0;
                 started          <= 0;
                 state            <= 1'b0;
+                we               <= 1'b0;
+                en               <= 1'b0;
+                address          <= 18'd0;
+                dataout          <= 8'd0;
+                i                <= 1'b0;
             end else begin
                 //Store last sample, and get new one for comparison.
                 data_in_reg_prev = data_in_reg;
