@@ -40,17 +40,16 @@ module LogicCapture(
                 state <= 1'b0;
             end else begin
 	    //Store last sample, and get new one for comparison.
-                data_in_reg_prev <= data_in_reg;
-                data_in_reg      <= datain;
+                data_in_reg_prev = data_in_reg;
+                data_in_reg      = datain;
             
-                if (control[0] == 1) begin
-                    started <=1;
-                    status[0] <= 1'b1;
-                end
-                
-                if (control[1] == 1) begin
-                    started <=0;
-                    status[0] <= 1'b0;
+                if (control[0] && !control[1]) begin
+                    started   = 1;
+                    status[0] = 1'b1;
+                end 
+                else begin
+                    started   = 0;
+                    status[0] = 1'b0;                    
                 end
                 
                 if(started ==1) begin //We are good to go
