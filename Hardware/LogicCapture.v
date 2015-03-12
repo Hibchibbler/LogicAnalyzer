@@ -18,6 +18,9 @@ module LogicCapture(
 	reg [17:0] BRAM_WR_Addr;
 	reg [7:0] data_in_reg;
     reg [7:0] data_in_reg_prev;
+    
+    reg [7:0] falling_edges;
+    reg [7:0] rising_edges;
 
     reg started;
     
@@ -39,6 +42,8 @@ module LogicCapture(
                 en               <= 1'b0;
                 address          <= 18'd0;
                 dataout          <= 8'd0;
+                rising_edges     <= 8'd0;
+                falling_edges    <= 8'd0;
             end else begin
                 //Store last sample, and get new one for comparison.
                 data_in_reg_prev = data_in_reg;
@@ -134,6 +139,9 @@ module LogicCapture(
                            started      <= 0;                                
                            BRAM_WR_Addr <= 0;
                        end
+                       //Determine which channels falling & rising edges happend on
+                       falling_edges = (~data_in_reg & data_in_reg_prev);
+                       rising_edges  = (data_in_reg & ~data_in_reg_prev);
                     end else
                     //Deassert "en/we" state
                     //This state exists so that if one clock cycle (10 ns), is to quick too deassert the en/we lines
@@ -142,6 +150,8 @@ module LogicCapture(
                         en <=0;
                         we <=0;
                         state <= 1'b0;
+                        falling_edges <= 8'd0;
+                        rising_edges  <= 8'd0;
                     end
                 end
             end   
