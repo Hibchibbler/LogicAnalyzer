@@ -13,8 +13,6 @@ module LogicCapture(
     output reg we,
     output reg en,
     output reg[17:0] address
-    
-    
 	);
 
 	reg [17:0] BRAM_WR_Addr;
@@ -35,7 +33,7 @@ module LogicCapture(
                 status           <= 0; //clear status register 
                 data_in_reg      <= 0;
                 data_in_reg_prev <= 0;
-                BRAM_WR_Addr     <=0;
+                BRAM_WR_Addr     <= 0;
                 started          <= 0;
                 state            <= 1'b0;
             end else begin
@@ -61,11 +59,11 @@ module LogicCapture(
                                 //Hard sample - Write to BRAM
                                 //Rising or Falling edge on channel i   
                                 //next clock cycle, this state machine will deassert en and we.                         
-                                en <=1;
-                                we <=1;                            
-                                address <= BRAM_WR_Addr;
+                                en           <= 1;
+                                we           <= 1;
+                                address      <= BRAM_WR_Addr;
                                 BRAM_WR_Addr <= BRAM_WR_Addr + 1'b1;                            
-                                dataout <= datain;
+                                dataout      <= datain;
                                 
                                 if (BRAM_WR_Addr == 18'd262143) begin
                                     status[0]    <= 1'b0;
@@ -79,7 +77,6 @@ module LogicCapture(
                             end
                         end
                     end else
-                    //
                     //Deassert "en/we" state
                     //This state exists so that if one clock cycle (10 ns), is to quick too deassert the en/we lines
                     //we can easily adjust it by changing how or when we get to this state.
@@ -89,7 +86,6 @@ module LogicCapture(
                         state <= 1'b0;
                     end
                 end
-                   
             end   
         end
 
