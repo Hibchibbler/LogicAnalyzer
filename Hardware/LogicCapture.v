@@ -49,16 +49,17 @@ module LogicCapture(
                 data_in_reg_prev = data_in_reg;
                 data_in_reg      = datain;
             
-                if (control[0] && !control[1]) begin
+                if (control[0]) begin
                     started   = 1;
                     status[0] = 1'b1;
                 end 
-                else begin
+
+                if (control[1]) begin
                     started   = 0;
                     status[0] = 1'b0;                    
                 end
                 
-                if(started ==1) begin //We are good to go
+                if(started) begin //We are good to go
                     //The "main" state - sample. if transition, write to BRAM.
                     if (state == 1'b0) begin
                         //Compare previous sample to current sample and
@@ -99,6 +100,10 @@ module LogicCapture(
                         falling_edges <= 8'd0;
                         rising_edges  <= 8'd0;
                     end
+                end else
+                begin
+                    en   <= 0;
+                    we   <= 0;
                 end
             end   
         end
