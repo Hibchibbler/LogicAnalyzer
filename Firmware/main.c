@@ -71,7 +71,9 @@ setControlMode = 0x1 for Microblaze control, 0x0 for peripheral control
 #include <xil_types.h>
 #include <xil_io.h>
 #include <XUartlite.h>
+#include "xuartlite_i.h"
 #include "BRAM_Muxxed.h"
+#include "XGpio.h"
 
 //#include <MyLogicCapture.h>
 
@@ -82,7 +84,7 @@ setControlMode = 0x1 for Microblaze control, 0x0 for peripheral control
 #define BRAM_BASEADDR			XPAR_BRAM_0_BASEADDR
 
 #define DATA_SIZE   128
-#define N_THREADS   2
+#define N_THREADS   3
 
 typedef struct _LOGIC_CAPTURE_DEVICE{
 	int id;
@@ -94,6 +96,7 @@ typedef struct _LOGIC_CAPTURE_DEVICE{
 void* MasterThread(void *);
 void* StateThread(void *);
 void* SerialThread(void *);
+void* gpioDebugThread(void *);
 
 void initializeHw();
 void initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId);
@@ -104,6 +107,9 @@ void writeConfig0(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg0);
 void writeConfig1(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg1);
 
 LOGIC_CAPTURE_DEVICE gLogCapDev;
+
+//Debug GPIO
+XGpio debugGPIO;
 
 volatile u8 masterThreadDone=0;
 volatile u8 stateThreadDone=0;
@@ -226,6 +232,10 @@ void* MasterThread(void *arg)
 		xil_printf ("Xilkernel: ERROR (%d) launching SerialThread %d.\r\n", ret, 0);
 	}
 
+	ret = pthread_create(&worker[3], &attr, (void*) gpioDebugThread, &args[0]);
+	if (ret != 0) {
+		xil_printf ("Xilkernel: Error (%d) launching gpioDebugThread %d\n\r", ret, 0);
+	}
 
 	msgId = msgget(MSG_Q_ID, IPC_CREAT);
 
@@ -245,6 +255,18 @@ void* MasterThread(void *arg)
 
 
 /* The worker threads */
+
+void* gpioDebugThread(void *arg) {
+
+	u16 gpioData = 0;
+
+	while(1) {
+		XGpio_DiscreteWrite(&debugGPIO, 1, gpioData++);
+		sleep(10);
+	}
+
+}
+
 void* StateThread(void *arg)
 {
     u8 psum;
@@ -388,6 +410,7 @@ void initializeHw()
 {
 	BRAM_MUXXED_init(BRAM_BASEADDR);
 	initializeLogicCapture(&gLogCapDev,LOGIC_CAPTURE_BASEADDR, LOGIC_CAPTURE_ID);
+	XGpio_Initialize(&debugGPIO, XPAR_AXI_GPIO_1_DEVICE_ID);
 }
 
 void initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId)
