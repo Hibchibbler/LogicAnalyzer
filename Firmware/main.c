@@ -71,9 +71,8 @@ setControlMode = 0x1 for Microblaze control, 0x0 for peripheral control
 #include <xil_types.h>
 #include <xil_io.h>
 #include <XUartlite.h>
-#include "xuartlite_i.h"
+#include <XGpio.h>
 #include "BRAM_Muxxed.h"
-#include "XGpio.h"
 
 //#include <MyLogicCapture.h>
 
@@ -81,10 +80,14 @@ setControlMode = 0x1 for Microblaze control, 0x0 for peripheral control
 #define LOGIC_CAPTURE_ID		XPAR_MYLOGICCAPTURE_0_DEVICE_ID
 #define LOGIC_CAPTURE_BASEADDR	XPAR_MYLOGICCAPTURE_0_S00_AXI_BASEADDR
 
-#define BRAM_BASEADDR			XPAR_BRAM_0_BASEADDR
+#define BRAM_BASEADDR			XPAR_BRAM_MUXXED_0_MUX_BRAM_AXI_BASEADDR
+
+#define GPIO_LED_ID				XPAR_AXI_GPIO_1_DEVICE_ID
+#define GPIO_LED_BASEADDR		XPAR_AXI_GPIO_1_BASEADDR
+#define GPIO_LED_CHANNEL		1
 
 #define DATA_SIZE   128
-#define N_THREADS   3
+#define N_THREADS   2
 
 typedef struct _LOGIC_CAPTURE_DEVICE{
 	int id;
@@ -96,10 +99,9 @@ typedef struct _LOGIC_CAPTURE_DEVICE{
 void* MasterThread(void *);
 void* StateThread(void *);
 void* SerialThread(void *);
-void* gpioDebugThread(void *);
 
 void initializeHw();
-void initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId);
+XStatus initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId);
 
 u32 readStatus(PLOGIC_CAPTURE_DEVICE logCapDev);
 void writeControl(PLOGIC_CAPTURE_DEVICE logCapDev, u32 ctl);
@@ -107,9 +109,6 @@ void writeConfig0(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg0);
 void writeConfig1(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg1);
 
 LOGIC_CAPTURE_DEVICE gLogCapDev;
-
-//Debug GPIO
-XGpio debugGPIO;
 
 volatile u8 masterThreadDone=0;
 volatile u8 stateThreadDone=0;
@@ -168,6 +167,8 @@ typedef struct _CMD_PARAMS{
 }CMD_PARAMS, *PCMD_PARAMS;
 
 /* Data */
+XGpio	gGpioLed;
+
 volatile u8 gDataBuffer[DATA_SIZE];
 volatile u8 gDataBufferIdx=0;
 
@@ -232,10 +233,6 @@ void* MasterThread(void *arg)
 		xil_printf ("Xilkernel: ERROR (%d) launching SerialThread %d.\r\n", ret, 0);
 	}
 
-	ret = pthread_create(&worker[3], &attr, (void*) gpioDebugThread, &args[0]);
-	if (ret != 0) {
-		xil_printf ("Xilkernel: Error (%d) launching gpioDebugThread %d\n\r", ret, 0);
-	}
 
 	msgId = msgget(MSG_Q_ID, IPC_CREAT);
 
@@ -255,18 +252,6 @@ void* MasterThread(void *arg)
 
 
 /* The worker threads */
-
-void* gpioDebugThread(void *arg) {
-
-	u16 gpioData = 0;
-
-	while(1) {
-		XGpio_DiscreteWrite(&debugGPIO, 1, gpioData++);
-		sleep(10);
-	}
-
-}
-
 void* StateThread(void *arg)
 {
     u8 psum;
@@ -318,6 +303,9 @@ void* StateThread(void *arg)
     	switch (state){
     	case STATE_INIT:
     		//Initialize stuff
+
+
+
     		gDataBufferIdx=0;
     		state = STATE_IDLE;
     		break;
@@ -333,8 +321,19 @@ void* StateThread(void *arg)
     		if (gStatusReg & 0x00000001){
     			//LogCapDev is busy..
     			//It is still collecting..
-    			xil_printf("Logic Capture Busy\r\n");
-    			sleep(1000);
+    			//xil_printf("Logic Capture Busy\r\n");
+    			XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x1001);
+    			sleep(30);
+    			XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x0110);
+    			sleep(30);
+				XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x0011);
+				sleep(30);
+				XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x1100);
+				sleep(30);
+				XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x0101);
+				sleep(30);
+				XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x1010);
+				sleep(30);
     		}else{
 
     			state = STATE_UPLOADING;
@@ -408,19 +407,40 @@ void* SerialThread(void* arg)
 
 void initializeHw()
 {
+	XStatus status = XST_SUCCESS;
 	BRAM_MUXXED_init(BRAM_BASEADDR);
+	status = BRAM_MUXXED_Reg_SelfTest((void *) XPAR_BRAM_MUXXED_0_MUX_BRAM_AXI_BASEADDR);
+	if (status != XST_SUCCESS){
+		xil_printf("BRAM_MUXXED_Reg_SelfTest(XPAR_BRAM_MUXXED_0_MUX_BRAM_AXI_BASEADDR) failed\r\n");
+		goto EndInitializing;
+	}
+
+	status = XGpio_Initialize(&gGpioLed, GPIO_LED_ID);
+	if (status != XST_SUCCESS){
+		xil_printf("XGpio_Initialize(GPIO_LED_ID) failed\r\n");
+		goto EndInitializing;
+	}
+
+	//Output-16bits - Hardware defined;
+	XGpio_SetDataDirection(&gGpioLed, GPIO_LED_CHANNEL, 0x0000);
+
 	initializeLogicCapture(&gLogCapDev,LOGIC_CAPTURE_BASEADDR, LOGIC_CAPTURE_ID);
-	XGpio_Initialize(&debugGPIO, XPAR_AXI_GPIO_1_DEVICE_ID);
+
+EndInitializing:
+	return status;
 }
 
-void initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId)
+XStatus initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId)
 {
+	XStatus status = XST_SUCCESS;
 	gControlReg = 0;
 	logCapDev->id = deviceId;
 	logCapDev->baseAddr = baseAddr;
 	writeControl(logCapDev, 0x00000000);
 	writeConfig0(logCapDev, 0x00000000);
 	writeConfig1(logCapDev, 0x00000000);
+
+	return status;
 }
 
 u32 readStatus(PLOGIC_CAPTURE_DEVICE logCapDev){
