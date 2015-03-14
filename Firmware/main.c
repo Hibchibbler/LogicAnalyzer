@@ -71,6 +71,7 @@ setControlMode = 0x1 for Microblaze control, 0x0 for peripheral control
 #include <xil_types.h>
 #include <xil_io.h>
 #include <XUartlite.h>
+#include "xuartlite_i.h"
 #include <XGpio.h>
 #include "BRAM_Muxxed.h"
 
@@ -100,8 +101,10 @@ void* MasterThread(void *);
 void* StateThread(void *);
 void* SerialThread(void *);
 
-void initializeHw();
+XStatus initializeHw();
 XStatus initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId);
+
+void uploadMemoryContents(u32 lowerAdx, u32 upperAdx);
 
 u32 readStatus(PLOGIC_CAPTURE_DEVICE logCapDev);
 void writeControl(PLOGIC_CAPTURE_DEVICE logCapDev, u32 ctl);
@@ -254,15 +257,15 @@ void* MasterThread(void *arg)
 /* The worker threads */
 void* StateThread(void *arg)
 {
-    u8 psum;
+//    u8 psum;
     u8 state = STATE_INIT;
 
-    psum = 0;
+//    psum = 0;
 	CMD_PARAMS cmdParams;
 	int ret;
 
     while (!stateThreadDone){
-    	xil_printf("%d\r\n", psum++);
+    	//xil_printf("%d\r\n", psum++);
 
 
     	//Handle Commands from Client
@@ -316,38 +319,16 @@ void* StateThread(void *arg)
     		//Update leds, or whatever
     		break;
     	case STATE_COLLECTING:
-
     		gStatusReg = readStatus(&gLogCapDev);
     		if (gStatusReg & 0x00000001){
-    			//LogCapDev is busy..
-    			//It is still collecting..
-    			//xil_printf("Logic Capture Busy\r\n");
-    			XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x1001);
-    			sleep(30);
-    			XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x0110);
-    			sleep(30);
-				XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x0011);
-				sleep(30);
-				XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x1100);
-				sleep(30);
-				XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x0101);
-				sleep(30);
-				XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, 0x1010);
-				sleep(30);
-    		}else{
 
+    		}else{
     			state = STATE_UPLOADING;
     		}
     		break;
     	case STATE_UPLOADING:
     		xil_printf("Uploading\r\n");
-
-    		//Switch Memory for MicroBlaze to use
-    		//While !done
-    		//	val = Read(Memory)
-    		//  WriteUart(val)
-    		//Switch Memory for LogicCap to use
-
+    		uploadMemoryContents(0,262143);
     		state = STATE_INIT;
     		break;
     	default:
@@ -358,6 +339,24 @@ void* StateThread(void *arg)
 
     xil_printf("StateThread shutting down\r\n");
     return NULL;
+}
+
+//Dump contents of bram to serial from lowerAdx to
+//upperAdx inclusive. Also sends the number of
+//bytes to be sent over the serial in 4 bytes,
+// most significant byte first
+void uploadMemoryContents(u32 lowerAdx, u32 upperAdx) {
+	u8 k;
+	u32 addr;
+	u32 totalByteCount = upperAdx - lowerAdx + 1;
+	for (k = 0; k  < 4; k++) {
+		XUartLite_SendByte(STDOUT_BASEADDRESS, (totalByteCount >> (3-k)*8) & 0x000000FF);
+	}
+	BRAM_MUXXED_setControlMode(0x1);
+	for (addr = lowerAdx; addr < upperAdx; addr++) {
+		XUartLite_SendByte(STDOUT_BASEADDRESS, BRAM_MUXXED_read(addr));
+	}
+	BRAM_MUXXED_setControlMode(0x0);
 }
 
 
@@ -405,7 +404,7 @@ void* SerialThread(void* arg)
 	return NULL;
 }
 
-void initializeHw()
+XStatus initializeHw()
 {
 	XStatus status = XST_SUCCESS;
 	BRAM_MUXXED_init(BRAM_BASEADDR);
