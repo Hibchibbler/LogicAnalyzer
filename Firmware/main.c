@@ -249,12 +249,12 @@ void* MasterThread(void *arg)
 
 	ret = pthread_create (&worker[0], &attr, (void*)StateThread,&args[0]);
 	if (ret != 0) {
-		sendErrorText ("Xilkernel: Error launching StateThread %d.\r\n");
+		sendErrorText ("-E- Xilkernel: Error launching StateThread %d.\r\n");
 	}
 
 	ret = pthread_create (&worker[1], &attr, (void*)SerialThread,&args[0]);
 	if (ret != 0) {
-		sendErrorText ("Xilkernel: Error launching SerialThread %d.\r\n");
+		sendErrorText ("-E- Xilkernel: Error launching SerialThread %d.\r\n");
 	}
 
 
@@ -264,7 +264,7 @@ void* MasterThread(void *arg)
 
     	sleep(1000);
     }
-	sendText("MasterThread shutting down\r\n");
+	sendText("-I- MasterThread shutting down\r\n");
 
 	for (i = 0; i < N_THREADS; i++) {
 		ret = pthread_join(worker[0], (void*)&result);
@@ -288,20 +288,17 @@ void* StateThread(void *arg)
 			{
 			case CMD_FUNC_START:
 				if (state == STATE_IDLE){
-
 					gControlReg = 0x0001;
 					writeControl(&gLogCapDev, gControlReg);
 					sleep(100);
 					gControlReg = 0x0000;
 					writeControl(&gLogCapDev, gControlReg);
-
 					state = STATE_COLLECTING;
 				}
 
 				break;
 			case CMD_FUNC_ABORT:
 				if (state == STATE_COLLECTING || state == STATE_UPLOADING){
-
 					gControlReg = 0x0010;
 					writeControl(&gLogCapDev, gControlReg);
 					sleep(100);
@@ -337,8 +334,9 @@ void* StateThread(void *arg)
     		}
     		break;
     	case STATE_UPLOADING:
-    		sendText("Uploading\r\n");
+    		sendText("-I- Uploading...");
     		uploadMemoryContents(0,262143);
+    		sendText("Complete!\r\n");
     		state = STATE_INIT;
     		break;
     	default:
@@ -347,7 +345,7 @@ void* StateThread(void *arg)
     	sleep(100);
     }
 
-    sendText("StateThread shutting down\r\n");
+    sendText("-I- StateThread shutting down\r\n");
     return NULL;
 }
 
@@ -362,15 +360,12 @@ void uploadMemoryContents(u32 lowerAdx, u32 upperAdx) {
 	u8 k;
 	u32 addr;
 	u32 totalByteCount = upperAdx - lowerAdx + 1;
-	u32 thisCount;
+	BRAM_MUXXED_setControlMode(0x1);
 	XUartLite_SendByte(STDOUT_BASEADDRESS,BINARY_DATA);
 	XUartLite_SendByte(STDOUT_BASEADDRESS,TRACE_DATA);
 	for (k = 0; k  < 4; k++) {
-		thisCount = (totalByteCount >> (3-k)*8) & 0x000000FF;
-		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) thisCount);
+		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) (totalByteCount >> (3-k)*8) & 0x000000FF);
 	}
-
-	BRAM_MUXXED_setControlMode(0x1);
 	for (addr = lowerAdx; addr <= upperAdx; addr++) {
 	    XUartLite_SendByte(STDOUT_BASEADDRESS, BRAM_MUXXED_read(addr));
 	}
@@ -397,7 +392,7 @@ void* SerialThread(void* arg)
 
 		switch(cmdParams.function){
 		case CMD_FUNC_START:
-			sendDebugText("Command Start Received\r\n");//tTrigger=%x\r\n\tClk Channel=%x\r\n\t");
+			sendText("-I- Command Start Received\r\n");//tTrigger=%x\r\n\tClk Channel=%x\r\n\t");
 			//xil_printf("Trigger Pattern=%x\r\n", cmdParams.GENERIC.byte1);
 			//xil_printf("Clock Channel=%d\r\n", cmdParams.START.chClk);
 			//xil_printf("Enabled Channels:\r\n Ch0 %d\r\n  Ch1 %d\r\n Ch2 %d\r\n Ch3 %d\r\n", cmdParams.START.chEn&0x1,cmdParams.START.chEn&0x2,cmdParams.START.chEn&0x4, cmdParams.START.chEn&0x8);
@@ -405,11 +400,11 @@ void* SerialThread(void* arg)
 			cmdRxd=1;
 			break;
 		case CMD_FUNC_ABORT:
-			sendDebugText("Command Abort Received\r\n");
+			sendText("-I- Command Abort Received\r\n");
 			cmdRxd=1;
 			break;
 		default:
-			sendDebugText("Command UNKNOWN Received\r\n");
+			sendErrorText("-E- Command UNKNOWN Received\r\n");
 			break;
 		}
 
@@ -418,7 +413,7 @@ void* SerialThread(void* arg)
 		sleep(500);
 	}
 
-	sendText("SerialThread shutting down\r\n");
+	sendText("-I- SerialThread shutting down\r\n");
 	return NULL;
 }
 
