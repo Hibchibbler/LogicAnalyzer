@@ -350,7 +350,7 @@ void uploadMemoryContents(u32 lowerAdx, u32 upperAdx) {
 	u32 addr;
 	u32 totalByteCount = upperAdx - lowerAdx + 1;
 	for (k = 0; k  < 4; k++) {
-		XUartLite_SendByte(STDOUT_BASEADDRESS, (totalByteCount >> (3-k)*8) & 0x000000FF);
+		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) (totalByteCount >> (3-k)*8) & 0x000000FF);
 	}
 	BRAM_MUXXED_setControlMode(0x1);
 	for (addr = lowerAdx; addr < upperAdx; addr++) {
