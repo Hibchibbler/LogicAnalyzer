@@ -58,6 +58,7 @@ setControlMode = 0x1 for Microblaze control, 0x0 for peripheral control
 
 /* Includes */
 #include "xmk.h"
+#include <string.h>
 #include "os_config.h"
 #include "sys/ksched.h"
 #include "sys/init.h"
@@ -76,6 +77,17 @@ setControlMode = 0x1 for Microblaze control, 0x0 for peripheral control
 #include "BRAM_Muxxed.h"
 
 //#include <MyLogicCapture.h>
+
+// Function codes for
+// serial communications protocol
+#define TEXT_FUNCTION  0x00
+#define BINARY_DATA    0x01
+#define ERROR_FUNCTION 0x02
+#define DEBUG_FUNCTION 0x03
+#define CMD_ACK        0x04
+
+// Subfunction codes
+#define TRACE_DATA     0x00 // Subfunction code for trace data from BRAM
 
 /* Declarations */
 #define LOGIC_CAPTURE_ID		XPAR_MYLOGICCAPTURE_0_DEVICE_ID
@@ -110,6 +122,13 @@ u32 readStatus(PLOGIC_CAPTURE_DEVICE logCapDev);
 void writeControl(PLOGIC_CAPTURE_DEVICE logCapDev, u32 ctl);
 void writeConfig0(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg0);
 void writeConfig1(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg1);
+
+void sendSerialPacket(u8 function, u8 subfunction, u32 payloadSize, const u8 *payLoad);
+void sendDebugText(const char *c);
+void sendText(const char *c);
+void sendErrorText(const char *c);
+void sendCmdAck(const u8 *payload, u32 payloadSize);
+void sendBinaryPayload(const u8 *payload, u32 payloadSize, u8 structure);
 
 LOGIC_CAPTURE_DEVICE gLogCapDev;
 
@@ -228,12 +247,12 @@ void* MasterThread(void *arg)
 
 	ret = pthread_create (&worker[0], &attr, (void*)StateThread,&args[0]);
 	if (ret != 0) {
-		xil_printf ("Xilkernel: ERROR (%d) launching StateThread %d.\r\n", ret, 0);
+		sendErrorText ("Xilkernel: Error launching StateThread %d.\r\n");
 	}
 
 	ret = pthread_create (&worker[1], &attr, (void*)SerialThread,&args[0]);
 	if (ret != 0) {
-		xil_printf ("Xilkernel: ERROR (%d) launching SerialThread %d.\r\n", ret, 0);
+		sendErrorText ("Xilkernel: Error launching SerialThread %d.\r\n");
 	}
 
 
@@ -243,7 +262,7 @@ void* MasterThread(void *arg)
 
     	sleep(1000);
     }
-	xil_printf("MasterThread shutting down\r\n");
+	sendText("MasterThread shutting down\r\n");
 
 	for (i = 0; i < N_THREADS; i++) {
 		ret = pthread_join(worker[0], (void*)&result);
@@ -252,22 +271,14 @@ void* MasterThread(void *arg)
     return (void*)0;
 }
 
-
-
 /* The worker threads */
 void* StateThread(void *arg)
 {
-//    u8 psum;
     u8 state = STATE_INIT;
-
-//    psum = 0;
 	CMD_PARAMS cmdParams;
 	int ret;
 
     while (!stateThreadDone){
-    	//xil_printf("%d\r\n", psum++);
-
-
     	//Handle Commands from Client
     	ret = msgrcv(msgId, &cmdParams, sizeof(cmdParams), 0, IPC_NOWAIT);
     	if (ret!=-1){
@@ -306,9 +317,6 @@ void* StateThread(void *arg)
     	switch (state){
     	case STATE_INIT:
     		//Initialize stuff
-
-
-
     		gDataBufferIdx=0;
     		state = STATE_IDLE;
     		break;
@@ -327,7 +335,7 @@ void* StateThread(void *arg)
     		}
     		break;
     	case STATE_UPLOADING:
-    		xil_printf("Uploading\r\n");
+    		sendText("Uploading\r\n");
     		uploadMemoryContents(0,262143);
     		state = STATE_INIT;
     		break;
@@ -337,18 +345,23 @@ void* StateThread(void *arg)
     	sleep(100);
     }
 
-    xil_printf("StateThread shutting down\r\n");
+    sendText("StateThread shutting down\r\n");
     return NULL;
 }
 
 //Dump contents of bram to serial from lowerAdx to
 //upperAdx inclusive. Also sends the number of
 //bytes to be sent over the serial in 4 bytes,
-// most significant byte first
+// most significant byte first.
+// Contains the logic to send a serial packet
+// instead of using the sendSerialPacketFunction
+// since the binary data is coming in piecewise
 void uploadMemoryContents(u32 lowerAdx, u32 upperAdx) {
 	u8 k;
 	u32 addr;
 	u32 totalByteCount = upperAdx - lowerAdx + 1;
+	XUartLite_SendByte(STDOUT_BASEADDRESS,BINARY_DATA);
+	XUartLite_SendByte(STDOUT_BASEADDRESS,TRACE_DATA);
 	for (k = 0; k  < 4; k++) {
 		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) (totalByteCount >> (3-k)*8) & 0x000000FF);
 	}
@@ -379,19 +392,19 @@ void* SerialThread(void* arg)
 
 		switch(cmdParams.function){
 		case CMD_FUNC_START:
-			xil_printf("Command Start Received\r\n");//tTrigger=%x\r\n\tClk Channel=%x\r\n\t");
-			xil_printf("Trigger Pattern=%x\r\n", cmdParams.GENERIC.byte1);
-			xil_printf("Clock Channel=%d\r\n", cmdParams.START.chClk);
-			xil_printf("Enabled Channels:\r\n Ch0 %d\r\n  Ch1 %d\r\n Ch2 %d\r\n Ch3 %d\r\n", cmdParams.START.chEn&0x1,cmdParams.START.chEn&0x2,cmdParams.START.chEn&0x4, cmdParams.START.chEn&0x8);
-			xil_printf("Pre Trigger Buffer=%d\r\n", cmdParams.START.PreBuf);
+			sendDebugText("Command Start Received\r\n");//tTrigger=%x\r\n\tClk Channel=%x\r\n\t");
+			//xil_printf("Trigger Pattern=%x\r\n", cmdParams.GENERIC.byte1);
+			//xil_printf("Clock Channel=%d\r\n", cmdParams.START.chClk);
+			//xil_printf("Enabled Channels:\r\n Ch0 %d\r\n  Ch1 %d\r\n Ch2 %d\r\n Ch3 %d\r\n", cmdParams.START.chEn&0x1,cmdParams.START.chEn&0x2,cmdParams.START.chEn&0x4, cmdParams.START.chEn&0x8);
+			//xil_printf("Pre Trigger Buffer=%d\r\n", cmdParams.START.PreBuf);
 			cmdRxd=1;
 			break;
 		case CMD_FUNC_ABORT:
-			xil_printf("Command Abort Received\r\n");
+			sendDebugText("Command Abort Received\r\n");
 			cmdRxd=1;
 			break;
 		default:
-			xil_printf("Command UNKNOWN Received\r\n");
+			sendDebugText("Command UNKNOWN Received\r\n");
 			break;
 		}
 
@@ -400,31 +413,26 @@ void* SerialThread(void* arg)
 		sleep(500);
 	}
 
-	xil_printf("SerialThread shutting down\r\n");
+	sendText("SerialThread shutting down\r\n");
 	return NULL;
 }
 
 XStatus initializeHw()
 {
 	XStatus status = XST_SUCCESS;
-	BRAM_MUXXED_init(BRAM_BASEADDR);
-	status = BRAM_MUXXED_Reg_SelfTest((void *) XPAR_BRAM_MUXXED_0_MUX_BRAM_AXI_BASEADDR);
+	status = BRAM_MUXXED_init(BRAM_BASEADDR);
 	if (status != XST_SUCCESS){
-		xil_printf("BRAM_MUXXED_Reg_SelfTest(XPAR_BRAM_MUXXED_0_MUX_BRAM_AXI_BASEADDR) failed\r\n");
+		sendDebugText("Failed to init BRAM_MUXXED peripheral");
 		goto EndInitializing;
 	}
-
 	status = XGpio_Initialize(&gGpioLed, GPIO_LED_ID);
 	if (status != XST_SUCCESS){
-		xil_printf("XGpio_Initialize(GPIO_LED_ID) failed\r\n");
+		sendDebugText("XGpio_Initialize(GPIO_LED_ID) failed\r\n");
 		goto EndInitializing;
 	}
-
 	//Output-16bits - Hardware defined;
 	XGpio_SetDataDirection(&gGpioLed, GPIO_LED_CHANNEL, 0x0000);
-
 	initializeLogicCapture(&gLogCapDev,LOGIC_CAPTURE_BASEADDR, LOGIC_CAPTURE_ID);
-
 EndInitializing:
 	return status;
 }
@@ -438,7 +446,6 @@ XStatus initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u3
 	writeControl(logCapDev, 0x00000000);
 	writeConfig0(logCapDev, 0x00000000);
 	writeConfig1(logCapDev, 0x00000000);
-
 	return status;
 }
 
@@ -460,3 +467,55 @@ void writeConfig1(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg1){
 	//MYLOGICCAPTURE_mWriteReg(logCapDev->baseAddr+12, 0, cfg1);
 	*((u32*)(logCapDev->baseAddr+12)) = cfg1;
 }
+
+void sendBinaryPayload(const u8 *payload, u32 payloadSize, u8 structure) {
+	sendSerialPacket(BINARY_DATA, structure, payloadSize, payload);
+}
+
+// Send a command acknowledgment to client software
+void sendCmdAck(const u8 *payload, u32 payloadSize) {
+	sendSerialPacket(CMD_ACK, 0x00, payloadSize, payload);
+}
+
+// write to serial with text function code
+// 1 to indicate debug text
+void sendDebugText(const char *c) {
+	u32 byteSize = strlen(c);
+	sendSerialPacket(DEBUG_FUNCTION,0x00,byteSize, (u8 *) c);
+}
+
+// write to serial with function code
+// 0 to indicate normal text
+void sendText(const char *c) {
+	u32 byteSize = strlen(c);
+	sendSerialPacket(TEXT_FUNCTION,0x00,byteSize, (u8 *) c);
+}
+
+// write to serial with function code
+// 0 to indicate normal text
+void sendErrorText(const char *c) {
+	u32 byteSize = strlen(c);
+	sendSerialPacket(ERROR_FUNCTION,0x00,byteSize, (u8 *) c);
+}
+
+// Sends all the components of a serial
+// command to over serial.
+// Function - 1 byte- 0 Text, 1 Debug Text, 2 Binary Data, 3 Command Ack
+// Subfunction - 1 byte - used only to indicate binary data structure, ignored otherwise
+// Payload size - 4 bytes - Number of bytes of payload, most sigificant byte first
+// Payload - "Payload size" bytes of data
+void sendSerialPacket(u8 function, u8 subfunction, u32 payloadSize, const u8 *payLoad) {
+	u32 k;
+	XUartLite_SendByte(STDOUT_BASEADDRESS, function);
+	XUartLite_SendByte(STDOUT_BASEADDRESS, subfunction);
+	// Deliver payload size
+	for (k = 0; k  < 4; k++) {
+		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) (payloadSize >> (3-k)*8) & 0x000000FF);
+	}
+	// Now transfer payloadSize bytes
+	//Note: Assumes payLoad size is at least payloadSize bytes long
+	for (k = 0; k < payloadSize; k++) {
+		XUartLite_SendByte(STDOUT_BASEADDRESS, payLoad[ k ]);
+	}
+}
+
