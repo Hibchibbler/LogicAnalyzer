@@ -113,6 +113,8 @@ void* MasterThread(void *);
 void* StateThread(void *);
 void* SerialThread(void *);
 
+void toHexStr(u32 num, char * buf);
+
 XStatus initializeHw();
 XStatus initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId);
 
@@ -360,14 +362,17 @@ void uploadMemoryContents(u32 lowerAdx, u32 upperAdx) {
 	u8 k;
 	u32 addr;
 	u32 totalByteCount = upperAdx - lowerAdx + 1;
+	u32 thisCount;
 	XUartLite_SendByte(STDOUT_BASEADDRESS,BINARY_DATA);
 	XUartLite_SendByte(STDOUT_BASEADDRESS,TRACE_DATA);
 	for (k = 0; k  < 4; k++) {
-		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) (totalByteCount >> (3-k)*8) & 0x000000FF);
+		thisCount = (totalByteCount >> (3-k)*8) & 0x000000FF;
+		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) thisCount);
 	}
+
 	BRAM_MUXXED_setControlMode(0x1);
 	for (addr = lowerAdx; addr <= upperAdx; addr++) {
-		XUartLite_SendByte(STDOUT_BASEADDRESS, BRAM_MUXXED_read(addr));
+	    XUartLite_SendByte(STDOUT_BASEADDRESS, BRAM_MUXXED_read(addr));
 	}
 	BRAM_MUXXED_setControlMode(0x0);
 }
@@ -519,3 +524,19 @@ void sendSerialPacket(u8 function, u8 subfunction, u32 payloadSize, const u8 *pa
 	}
 }
 
+// Debug function to convert a
+// u32 value to a hex string
+// assumes "buf" is a size of 9
+void toHexStr(u32 num, char * buf) {
+	  int   cnt;
+	  char  *ptr;
+	  int   digit;
+	  ptr = buf;
+	  for (cnt = 7 ; cnt >= 0 ; cnt--) {
+	    digit = (num >> (cnt * 4)) & 0xf;
+	    if (digit <= 9)
+	      *ptr++ = (char) ('0' + digit);
+	    else
+	      *ptr++ = (char) ('a' - 10 + digit);
+	  }
+}
