@@ -157,7 +157,7 @@ volatile int msgId;
 #define CMD_FUNC(inByte)	(inByte &  0x7)
 
 typedef struct _CMD_PARAMS{
-	u8 function;
+
 	union{
 		struct {
 			//Byte 0
@@ -191,6 +191,7 @@ typedef struct _CMD_PARAMS{
 			// before the trigger
 			u32 preTriggerSamples : 18;
 			u32 reserved1         : 14;
+
 		}START;
 		struct {
 			u32	reserved1;
@@ -206,7 +207,8 @@ typedef struct _CMD_PARAMS{
 			u8  byte6;
 			u8  byte7;
 		}GENERIC;
-		u64 AsU32;
+		u32 AsU32Lo;
+		u32 AsU32Hi;
 	};
 }CMD_PARAMS, *PCMD_PARAMS;
 
@@ -299,12 +301,13 @@ void* StateThread(void *arg)
     u8 state = STATE_INIT;
 	CMD_PARAMS cmdParams;
 	int ret;
+	u8 wigglePatternIdx		= 0;
 
     while (!stateThreadDone){
     	//Handle Commands from Client
     	ret = msgrcv(msgId, &cmdParams, sizeof(cmdParams), 0, IPC_NOWAIT);
     	if (ret!=-1){
-			switch (cmdParams.function)
+			switch (CMD_FUNC(cmdParams.GENERIC.byte0))
 			{
 			case CMD_FUNC_START:
 				if (state == STATE_IDLE){
@@ -348,7 +351,12 @@ void* StateThread(void *arg)
     	case STATE_COLLECTING:
     		gStatusReg = readStatus(&gLogCapDev);
     		if (gStatusReg & 0x00000001){
-
+                //Uncommment if you want GPIO to drive datain
+                //
+    			//XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, wigglePatternIdx);
+				//wigglePatternIdx++;
+				//if (wigglePatternIdx > 255)
+				//	wigglePatternIdx=0;
     		}else{
     			state = STATE_UPLOADING;
     		}
@@ -362,7 +370,6 @@ void* StateThread(void *arg)
     	default:
     		break;
     	}
-    	sleep(100);
     }
 
     sendText("-I- StateThread shutting down\r\n");
@@ -403,18 +410,18 @@ void* SerialThread(void* arg)
 
 		//Commands from Client are always 4 bytes.
 		//cmdParams is a cool structure with a union; it allows for different ways to get at the same data.
-		cmdParams.GENERIC.byte0 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
-		cmdParams.GENERIC.byte1 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
-		cmdParams.GENERIC.byte2 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
-		cmdParams.GENERIC.byte3 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
-		cmdParams.GENERIC.byte4 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
-		cmdParams.GENERIC.byte5 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
-		cmdParams.GENERIC.byte6 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
-		cmdParams.GENERIC.byte7 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
+		cmdParams.GENERIC.byte0 = XUartLite_RecvByte(STDIN_BASEADDRESS);
+		cmdParams.GENERIC.byte1 = XUartLite_RecvByte(STDIN_BASEADDRESS);
+		cmdParams.GENERIC.byte2 = XUartLite_RecvByte(STDIN_BASEADDRESS);
+		cmdParams.GENERIC.byte3 = XUartLite_RecvByte(STDIN_BASEADDRESS);
+		cmdParams.GENERIC.byte4 = XUartLite_RecvByte(STDIN_BASEADDRESS);
+		cmdParams.GENERIC.byte5 = XUartLite_RecvByte(STDIN_BASEADDRESS);
+		cmdParams.GENERIC.byte6 = XUartLite_RecvByte(STDIN_BASEADDRESS);
+		cmdParams.GENERIC.byte7 = XUartLite_RecvByte(STDIN_BASEADDRESS);
 
-		cmdParams.function = CMD_FUNC(cmdParams.GENERIC.byte0);
+		//cmdParams.function = CMD_FUNC(cmdParams.GENERIC.byte0);
 
-		switch(cmdParams.function){
+		switch(CMD_FUNC(cmdParams.GENERIC.byte0)){
 		case CMD_FUNC_START:
 			sendText("-I- Command Start Received\r\n");//tTrigger=%x\r\n\tClk Channel=%x\r\n\t");
 			cmdRxd=1;
