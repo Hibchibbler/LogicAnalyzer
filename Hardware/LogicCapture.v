@@ -24,8 +24,10 @@ module LogicCapture(
     wire [7:0] rising_edges;
     reg [2:0] trigger_channel;
     reg RorF;      // Rising or falling 1 is rising, 0 is falling
+    reg EDGE_TRIGGER_DISABLE; // bit 5 of the trigger definition register
     wire [7:0] TRIG; // Channel trigger hits
     reg TRIGGER;   // All channels matched global trigger signal
+    
     
     reg [17:0] preTriggerSamples;
     reg [17:0] postTriggerSamples;
@@ -70,18 +72,20 @@ module LogicCapture(
                 postTriggerSamples <= 18'd0;
                 postTriggerCtr     <= 18'd0;
                 preTriggerSamplesMet <= 1'b0;
+                EDGE_TRIGGER_DISABLE <= 1'b0;
             end else begin
                 //Store last sample, and get new one for comparison.
                 data_in_reg_prev <= data_in_reg;
                 data_in_reg      <= datain;
             
                 if (control[0]) begin
-                    preTriggerSamples  <= {2'b00, config1[15:0]};   // Number of samples to take pre-trigger configured by user
-                    postTriggerSamples <= {2'b00, config1[31:16]};   // after trigger samples are whatever is left
-                    started            <= 1'b1;
-                    status[0]          <= 1'b1;
-                    trigger_channel    <= config0[2:0];
-                    RorF               <= config0[3];
+                    preTriggerSamples    <= {2'b00, config1[15:0]};   // Number of samples to take pre-trigger configured by user
+                    postTriggerSamples   <= {2'b00, config1[31:16]};   // after trigger samples are whatever is left
+                    started              <= 1'b1;
+                    status[0]            <= 1'b1;
+                    trigger_channel      <= config0[2:0];
+                    RorF                 <= config0[3];
+                    EDGE_TRIGGER_DISABLE <= config0[4];
                 end
 
                 if (control[1]) begin
@@ -122,8 +126,8 @@ module LogicCapture(
                         end
 
                         //Trigger detection
-                        if( (rising_edges[trigger_channel] & RorF) | (falling_edges[trigger_channel] & ~RorF) ) begin
-                            //If here - a edge trigger occurred
+                        if( ((rising_edges[trigger_channel] & RorF) | (falling_edges[trigger_channel] & ~RorF)) | EDGE_TRIGGER_DISABLE ) begin
+                            //If here - a edge trigger occurred (or edge triggers are disabled)
                             if(TRIG == 8'hFF) begin
                                 // if here - all required values matched on an edge trigger event
                                 TRIGGER           <= 1;	

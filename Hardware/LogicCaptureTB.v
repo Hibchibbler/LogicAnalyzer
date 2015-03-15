@@ -62,16 +62,16 @@ LogicCapture captureModule(
     .address()
 );
 
-assign channelNumber = 3'd0;
+assign channelNumber = 3'd2;
 assign riseNotFall = 1'b1;
 
 assign preTrigger = 16'h0005;
 assign postTrigger = 16'h000A;
 
-assign ch0 = 2'b00;
+assign ch0 = 2'b11;
 assign ch1 = 2'b10;
 assign ch2 = 2'b00;
-assign ch3 = 2'b11;
+assign ch3 = 2'b10;
 assign ch4 = 2'b00;
 assign ch5 = 2'b00;
 assign ch6 = 2'b00;
@@ -82,21 +82,21 @@ begin
     #(5)  resetn     <= 1'b1;
     #(4)  config1[15:0]    <= preTrigger;
           config1[31:16]   <= postTrigger;
-          config0    <= {ch7,ch6,ch5,ch4,ch3,ch2,ch1,ch0,12'b000000000000, riseNotFall, channelNumber};
+          config0    <= {ch7,ch6,ch5,ch4,ch3,ch2,ch1,ch0,11'b00000000000,1'b1, riseNotFall, channelNumber};
     #(20) control[0] <= 1'b1;
     #(8)  datain[0]  <= 1'b1;
           control[0] <= 1'b0;
     #(8)  datain[0]  <= 1'b0;
     #(8)  datain[0]  <= 1'b1;
+    #(8)  datain[0]  <= 1'b0;
+    #(8)  datain[0]  <= 1'b1;
+    #(8)  datain[0]  <= 1'b0;
+    #(8)  datain[0]  <= 1'b1;
+    #(8)  datain[0]  <= 1'b0;
+    #(8)  datain[0]  <= 1'b1;
+    #(8)  datain[0]  <= 1'b0;
+    #(8)  datain[0]  <= 1'b1;
           datain[3]  <= 1'b1;
-    #(8)  datain[0]  <= 1'b0;
-    #(8)  datain[0]  <= 1'b1;
-    #(8)  datain[0]  <= 1'b0;
-    #(8)  datain[0]  <= 1'b1;
-    #(8)  datain[0]  <= 1'b0;
-    #(8)  datain[0]  <= 1'b1;
-    #(8)  datain[0]  <= 1'b0;
-    #(8)  datain[0]  <= 1'b1;
     #(8)  datain[0]  <= 1'b0;
     #(8)  datain[0]  <= 1'b1;
     #(8)  datain[0]  <= 1'b0;
