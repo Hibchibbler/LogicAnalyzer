@@ -125,9 +125,11 @@ XStatus initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u3
 void uploadMemoryContents(u32 startAdx, u32 adxLength);
 
 u32 readStatus(PLOGIC_CAPTURE_DEVICE logCapDev);
+u32 readStatus1(PLOGIC_CAPTURE_DEVICE logCapDev);
 void writeControl(PLOGIC_CAPTURE_DEVICE logCapDev, u32 ctl);
 void writeConfig0(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg0);
 void writeConfig1(PLOGIC_CAPTURE_DEVICE logCapDev, u32 cfg1);
+
 
 void sendSerialPacket(u8 function, u8 subfunction, u32 payloadSize, const u8 *payLoad);
 void sendDebugText(const char *c);
@@ -193,8 +195,13 @@ typedef struct _CMD_PARAMS{
 			// Number of samples pre-trigger
 			// total number of samples to save
 			// before the trigger
-			u32 preTriggerSamples : 18;
-			u32 reserved1         : 14;
+			u32 preTriggerSamples : 16;
+
+			//Number of samples post-trigger
+			// total number of samples to save
+			// after the trigger.
+			u32 postTriggerSamples: 16;
+
 
 		}START;
 		struct {
@@ -327,13 +334,15 @@ void* StateThread(void *arg)
     u8 state = STATE_INIT;
 	CMD_PARAMS cmdParams;
 	int ret;
-//	u8 wigglePatternIdx		= 0;
+	u8 wigglePatternIdx		= 0;
 
 	u32 sawTrigger = 0;
 	u32 sawPreTrigger = 0;
 
 	u32 triggerAddress;
 	int startAddress;
+
+	u32 lastAddress;
 
 	char numBuff[9];
 
@@ -347,7 +356,7 @@ void* StateThread(void *arg)
 				if (state == STATE_IDLE){
 					gControlReg = 0x0001;
 					writeConfig0(&gLogCapDev,buildConfig0(&cmdParams));
-					writeConfig1(&gLogCapDev, cmdParams.START.preTriggerSamples);
+					writeConfig1(&gLogCapDev, (cmdParams.START.postTriggerSamples << 16)| cmdParams.START.preTriggerSamples);
 					writeControl(&gLogCapDev, gControlReg);
 					sleep(100);
 					gControlReg = 0x0000;
@@ -389,11 +398,12 @@ void* StateThread(void *arg)
     		if (gStatusReg & 0x00000001){
                 //Uncommment if you want GPIO to drive datain
                 //
-    			//XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, wigglePatternIdx);
-				//wigglePatternIdx++;
-				//if (wigglePatternIdx > 255)
-				//	wigglePatternIdx=0;
+    			XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, wigglePatternIdx);
+				wigglePatternIdx++;
+				if (wigglePatternIdx > 255)
+					wigglePatternIdx=0;
     		}else{
+    			lastAddress = readStatus1(&gLogCapDev);
     			state = STATE_UPLOADING;
     		}
     		if ((gStatusReg & SAW_PRETRIGGER_MASK) && !sawPreTrigger) {
@@ -409,7 +419,7 @@ void* StateThread(void *arg)
     		gStatusReg = readStatus(&gLogCapDev);
     		triggerAddress     = ((gStatusReg & TRIGGER_ADDR_MASK) >> 2);
     		toHexStr(triggerAddress, numBuff);
-    		sendText("Trigger Address: 0x");
+    		sendText("-I- Trigger Address: 0x");
     		sendText(numBuff);
     		sendText("\r\n");
     		sendText("-I- Uploading...\r\n");
@@ -419,7 +429,7 @@ void* StateThread(void *arg)
     			// so just dump whole buffer
     			sendText("-I- Pre-trigger sample buffer not full\r\n");
     			sendText("-I- Dumping samples from address 0\r\n");
-    			uploadMemoryContents(0,262144);
+    			uploadMemoryContents(0, 262144);
     		} else {
     			// Need to figure out the proper
     			// address to roll through
@@ -429,7 +439,7 @@ void* StateThread(void *arg)
     			}
     			uploadMemoryContents(startAddress, 262144);
     		}
-    		sendText("Complete!\r\n");
+    		sendText("-I- Upload Complete!\r\n");
     		state = STATE_INIT;
     		break;
     	default:
@@ -539,6 +549,11 @@ XStatus initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u3
 u32 readStatus(PLOGIC_CAPTURE_DEVICE logCapDev){
 	//return MYLOGICCAPTURE_mReadReg(logCapDev->baseAddr+0, 0);
 	return *((u32*)(logCapDev->baseAddr+0));
+}
+
+u32 readStatus1(PLOGIC_CAPTURE_DEVICE logCapDev){
+	//return MYLOGICCAPTURE_mReadReg(logCapDev->baseAddr+0, 0);
+	return *((u32*)(logCapDev->baseAddr+16));
 }
 void writeControl(PLOGIC_CAPTURE_DEVICE logCapDev, u32 ctl){
 	//MYLOGICCAPTURE_mWriteReg(logCapDev->baseAddr+4, 0, ctl);
