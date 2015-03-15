@@ -29,8 +29,6 @@ module LogicCapture(
     reg [17:0] postTriggerSamples;
 
     reg preTriggerSamplesMet; // If true, indicates that at least preTriggerSamples total has been taken
-    
-    reg [17:0] BRAM_WR_Addr_TRIG;
     reg [17:0] postTriggerCtr;
     
     reg started;
@@ -42,7 +40,7 @@ module LogicCapture(
     //  Do some of the combinational logic outside of the sequential block
     assign TRIG_VAL_ENABLE = {config0[31],config0[29],config0[27],config0[25],config0[23],config0[21],config0[19],config0[17]};
     assign TRIG_VALUE_CMP  = {config0[30],config0[28],config0[26],config0[24],config0[22],config0[20],config0[18],config0[16]}; 
-    assign TRIG    = data_in_reg ^~ TRIG_VALUE_CMP | ~TRIG_VAL_ENABLE;
+    assign TRIG    = (data_in_reg ^~ TRIG_VALUE_CMP | ~TRIG_VAL_ENABLE) & ~{8{TRIGGER}};
     assign falling_edges    = (~data_in_reg & data_in_reg_prev);
     assign rising_edges     = (data_in_reg & ~data_in_reg_prev);
 	
@@ -68,7 +66,6 @@ module LogicCapture(
                 preTriggerSamples  <= 18'd0;
                 postTriggerSamples <= 18'd0;
                 postTriggerCtr     <= 18'd0;
-                BRAM_WR_Addr_TRIG  <= 18'd0;
                 preTriggerSamplesMet <= 1'b0;
             end else begin
                 //Store last sample, and get new one for comparison.
@@ -127,8 +124,7 @@ module LogicCapture(
                             if(TRIG == 8'hFF) begin
                                 // if here - all required values matched on an edge trigger event
                                 TRIGGER           <= 1;	
-                                BRAM_WR_Addr_TRIG <= BRAM_WR_Addr;
-                                status[19:2]      <= BRAM_WR_Addr_TRIG;
+                                status[19:2]      <= BRAM_WR_Addr; // Update status register with value of trigger address
                                 status[1]         <= 1'b1; // Update status bit that indicates trigger detected
                             end
                         end
