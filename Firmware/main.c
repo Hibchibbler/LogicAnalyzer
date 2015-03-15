@@ -175,18 +175,24 @@ typedef struct _CMD_PARAMS{
 			//Byte 3
 			u8 PreBuf		: 8;
 
-
+			//Extra bytes
+			u32 reserved3;
 		}START;
 		struct {
 			u32	reserved1;
+			u32 reserved2;
 		}ABORT;
 		struct {
 			u8	byte0;
 			u8	byte1;
 			u8	byte2;
 			u8	byte3;
+			u8  byte4;
+			u8  byte5;
+			u8  byte6;
+			u8  byte7;
 		}GENERIC;
-		u32 AsU32;
+		u64 AsU32;
 	};
 }CMD_PARAMS, *PCMD_PARAMS;
 
@@ -387,16 +393,16 @@ void* SerialThread(void* arg)
 		cmdParams.GENERIC.byte1 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
 		cmdParams.GENERIC.byte2 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
 		cmdParams.GENERIC.byte3 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
+		cmdParams.GENERIC.byte4 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
+		cmdParams.GENERIC.byte5 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
+		cmdParams.GENERIC.byte6 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
+		cmdParams.GENERIC.byte7 = XUartLite_RecvByte(STDOUT_BASEADDRESS);
 
 		cmdParams.function = CMD_FUNC(cmdParams.GENERIC.byte0);
 
 		switch(cmdParams.function){
 		case CMD_FUNC_START:
 			sendText("-I- Command Start Received\r\n");//tTrigger=%x\r\n\tClk Channel=%x\r\n\t");
-			//xil_printf("Trigger Pattern=%x\r\n", cmdParams.GENERIC.byte1);
-			//xil_printf("Clock Channel=%d\r\n", cmdParams.START.chClk);
-			//xil_printf("Enabled Channels:\r\n Ch0 %d\r\n  Ch1 %d\r\n Ch2 %d\r\n Ch3 %d\r\n", cmdParams.START.chEn&0x1,cmdParams.START.chEn&0x2,cmdParams.START.chEn&0x4, cmdParams.START.chEn&0x8);
-			//xil_printf("Pre Trigger Buffer=%d\r\n", cmdParams.START.PreBuf);
 			cmdRxd=1;
 			break;
 		case CMD_FUNC_ABORT:
