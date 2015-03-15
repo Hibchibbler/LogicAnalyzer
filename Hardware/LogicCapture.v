@@ -14,16 +14,37 @@ module LogicCapture(
     output reg[17:0] address
 	);
 
-	reg [18:0] BRAM_WR_Addr;
+	reg [17:0] BRAM_WR_Addr;
 	reg [7:0] data_in_reg;
     reg [7:0] data_in_reg_prev;
     
-    reg [7:0] falling_edges;
-    reg [7:0] rising_edges;
+    wire [7:0] falling_edges;
+    wire [7:0] rising_edges;
+    reg [2:0] trigger_channel;
+    reg RorF;      // Rising or falling 1 is rising, 0 is falling
+    wire [7:0] TRIG; // Channel trigger hits
+    reg TRIGGER;   // All channels matched global trigger signal
+    
+    reg [17:0] preTriggerSamples;
+    reg [17:0] postTriggerSamples;
 
+    reg preTriggerSamplesMet; // If true, indicates that at least preTriggerSamples total has been taken
+    
+    reg [17:0] BRAM_WR_Addr_TRIG;
+    reg [17:0] postTriggerCtr;
+    
     reg started;
     
     reg state; //0 sampling, 1 writing to BRAM
+    
+    wire [7:0] TRIG_VAL_ENABLE;
+    wire [7:0] TRIG_VALUE_CMP;
+    //  Do some of the combinational logic outside of the sequential block
+    assign TRIG_VAL_ENABLE = {config0[31],config0[29],config0[27],config0[25],config0[23],config0[21],config0[19],config0[17]};
+    assign TRIG_VALUE_CMP  = {config0[30],config0[28],config0[26],config0[24],config0[22],config0[20],config0[18],config0[16]}; 
+    assign TRIG    = data_in_reg ^~ TRIG_VALUE_CMP | ~TRIG_VAL_ENABLE;
+    assign falling_edges    = (~data_in_reg & data_in_reg_prev);
+    assign rising_edges     = (data_in_reg & ~data_in_reg_prev);
 	
 	//--------------//
     //     RESET    // DONE
@@ -31,26 +52,36 @@ module LogicCapture(
 	always @(posedge clk or negedge resetn)
         begin
             if(resetn == 1'b0) begin
-                status           <= 32'd0; //clear status register
-                data_in_reg      <= 8'd0;
-                data_in_reg_prev <= 8'd0;
-                BRAM_WR_Addr     <= 19'd0;
-                started          <= 1'b0;
-                state            <= 1'b0;
-                we               <= 1'b0;
-                en               <= 1'b0;
-                address          <= 18'd0;
-                dataout          <= 8'd0;
-                rising_edges     <= 8'd0;
-                falling_edges    <= 8'd0;
+                status             <= 32'd0; //clear status register
+                data_in_reg        <= 8'd0;
+                data_in_reg_prev   <= 8'd0;
+                BRAM_WR_Addr       <= 19'd0;
+                started            <= 1'b0;
+                state              <= 1'b0;
+                we                 <= 1'b0;
+                en                 <= 1'b0;
+                address            <= 18'd0;
+                dataout            <= 8'd0;
+                TRIGGER            <= 1'b0;
+                RorF               <= 1'b0;
+                trigger_channel    <= 3'd0;
+                preTriggerSamples  <= 18'd0;
+                postTriggerSamples <= 18'd0;
+                postTriggerCtr     <= 18'd0;
+                BRAM_WR_Addr_TRIG  <= 18'd0;
+                preTriggerSamplesMet <= 1'b0;
             end else begin
                 //Store last sample, and get new one for comparison.
                 data_in_reg_prev <= data_in_reg;
                 data_in_reg      <= datain;
             
                 if (control[0]) begin
-                    started   <= 1'b1;
-                    status[0] <= 1'b1;
+                    preTriggerSamples  <= config1[17:0];                    // Number of samples to take pre-trigger configured by user
+                    postTriggerSamples <= 18'd262143 - preTriggerSamples; // after trigger samples are whatever is left
+                    started            <= 1'b1;
+                    status[0]          <= 1'b1;
+                    trigger_channel    <= config0[2:0];
+                    RorF               <= config0[3];
                 end
 
                 if (control[1]) begin
@@ -70,6 +101,16 @@ module LogicCapture(
                             we           <= 1'b1;
                             BRAM_WR_Addr <= BRAM_WR_Addr + 19'd1;
                             state        <= 1'b1;
+                            if (TRIGGER) begin
+                                // Need to keep count of samples
+                                // after the trigger to figure out when it stops
+                                postTriggerCtr <= postTriggerCtr + 18'd1;
+                            end
+                            if (((BRAM_WR_Addr) == preTriggerSamples) & ~TRIGGER)
+                            begin
+                                preTriggerSamplesMet <= 1'b1;
+                                status[20]           <= 1'b1; // Updates a status bit that at least 'preTrigger' samples taken
+                            end
                         end else
                         begin
                             en           <= 1'b0;
@@ -79,14 +120,23 @@ module LogicCapture(
                             BRAM_WR_Addr <= BRAM_WR_Addr;
                             state        <= 1'b0;
                         end
-                        //Determine which channels falling & rising edges happened on
-                        falling_edges <= (~data_in_reg & data_in_reg_prev);
-                        rising_edges  <= (data_in_reg & ~data_in_reg_prev);
-                        //Check if buffer is full
-                        if (BRAM_WR_Addr[18]) begin
-                           status[0]    <= 1'b0;
-                           started      <= 1'b0;
-                           BRAM_WR_Addr <= 19'd0;
+
+                        //Trigger detection
+                        if( (rising_edges[trigger_channel] & RorF) | (falling_edges[trigger_channel] & ~RorF) ) begin
+                            //If here - a edge trigger occurred
+                            if(TRIG == 8'hFF) begin
+                                // if here - all required values matched on an edge trigger event
+                                TRIGGER           <= 1;	
+                                BRAM_WR_Addr_TRIG <= BRAM_WR_Addr;
+                                status[19:2]      <= BRAM_WR_Addr_TRIG;
+                                status[1]         <= 1'b1; // Update status bit that indicates trigger detected
+                            end
+                        end
+                        
+                        // If the post trigger counter(plus1) equals the posttrigger samples, quit
+                        if ((postTriggerCtr + 1) == postTriggerSamples) begin
+                            started   <= 1'b0;
+                            status[0] <= 1'b0;
                         end
                     end else
                     //Deassert "en/we" state
@@ -96,8 +146,6 @@ module LogicCapture(
                         en            <= 1'b0;
                         we            <= 1'b0;
                         state         <= 1'b0;
-                        falling_edges <= 8'd0;
-                        rising_edges  <= 8'd0;
                     end
                 end else
                 begin
