@@ -163,17 +163,34 @@ typedef struct _CMD_PARAMS{
 			//Byte 0
 			u8 byte0;
 
-			//Byte 1
-			u8 chanTrigger	: 4;
-			u8 reserved1    : 4;
+			//Byte 1: Edge Detect Config
+			// 3 bit value to indicate channel
+			// to look for edge on
+			// 1 bit value to indicate rising or falling
+			u8 channelNumber : 3;
+			u8 riseNotFall   : 1;
+			u8 reserved0     : 4;
 
-			//Byte 2
-			u8	chClk		: 2;
-			u8	chEn		: 4;
-			u8 reserved2    : 2;
+			// Byte 2 & 3
+			// Value triggers for all channels
+			// For each channel
+			// 00 - Low true trigger
+			// 01 - High true trigger
+			// 10 - Don't care
+			u16 ch0  : 2;
+			u16 ch1  : 2;
+			u16 ch2  : 2;
+			u16 ch3  : 2;
+			u16 ch4  : 2;
+			u16 ch5  : 2;
+			u16 ch6  : 2;
+			u16 ch7  : 2;
 
-			//Byte 3
-			u8 PreBuf		: 8;
+			// Number of samples pre-trigger
+			// total number of samples to save
+			// before the trigger
+			u32 preTriggerSamples : 18;
+			u32 reserved1         : 14;
 
 			//Extra bytes
 			u32 reserved3;
