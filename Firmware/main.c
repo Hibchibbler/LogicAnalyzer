@@ -191,9 +191,6 @@ typedef struct _CMD_PARAMS{
 			// before the trigger
 			u32 preTriggerSamples : 18;
 			u32 reserved1         : 14;
-
-			//Extra bytes
-			u32 reserved3;
 		}START;
 		struct {
 			u32	reserved1;
