@@ -2,10 +2,12 @@ module LogicCapture(
     input wire        clk,
 	input wire        resetn,
 	
-	output reg [31:0] status,  //reg0
-	input  wire[31:0] control, //reg1
-	input  wire[31:0] config0, //reg2
-	input  wire[31:0] config1, //reg3
+	output reg [31:0] status,  //bit 0 -  busy, bit 1 - trigger detected, bits[19:2] trigger address
+                               //bit 20 - pre trigger samples achieved
+    output reg [31:0] status1, //stores the address of the final sample
+	input  wire[31:0] control, //bit 0 - start, bit 1 - abort
+	input  wire[31:0] config0, //trigger definition
+	input  wire[31:0] config1, //{postTriggerSamples, preTriggerSamples}
 	
 	input  wire[7:0] datain,   //From some Nexy4 Port
 	output reg [7:0] dataout,  //to BRAM
@@ -51,6 +53,7 @@ module LogicCapture(
         begin
             if(resetn == 1'b0) begin
                 status             <= 32'd0; //clear status register
+                status1            <= 32'd0;
                 data_in_reg        <= 8'd0;
                 data_in_reg_prev   <= 8'd0;
                 BRAM_WR_Addr       <= 19'd0;
@@ -73,8 +76,8 @@ module LogicCapture(
                 data_in_reg      <= datain;
             
                 if (control[0]) begin
-                    preTriggerSamples  <= config1[17:0];                    // Number of samples to take pre-trigger configured by user
-                    postTriggerSamples <= 18'd262143 - preTriggerSamples; // after trigger samples are whatever is left
+                    preTriggerSamples  <= {2'b00, config1[15:0]};   // Number of samples to take pre-trigger configured by user
+                    postTriggerSamples <= {2'b00, config1[31:16]};   // after trigger samples are whatever is left
                     started            <= 1'b1;
                     status[0]          <= 1'b1;
                     trigger_channel    <= config0[2:0];
@@ -147,6 +150,9 @@ module LogicCapture(
                 begin
                     en   <= 1'b0;
                     we   <= 1'b0;
+                    // If the start bit is 0, just set the 
+                    // "last address sampled" to the current address.
+                    status1[17:0] <= address;
                 end
             end
         end

@@ -10,6 +10,7 @@ reg test2;
 reg [31:0] control;
 reg [31:0] config0;
 reg [31:0] config1;
+reg [31:0] config2;
 
 reg [7:0] datain;
 
@@ -25,6 +26,7 @@ wire [1:0] ch6;
 wire [1:0] ch7;
 
 wire [17:0] preTrigger;
+wire [17:0] postTrigger;
 
 initial
 begin
@@ -35,6 +37,7 @@ begin
     config0 <= 32'd0;
     config1 <= 32'd0;
     datain  <= 8'd0;
+    config2 <= 32'd0;
     $dumpfile("simresults.vcd");
     $dumpvars;
 end
@@ -48,6 +51,7 @@ LogicCapture captureModule(
     .clk(clk),
 	.resetn(resetn),
 	.status(),         //reg0
+    .status1(),
 	.control(control), //reg1
 	.config0(config0), //reg2
 	.config1(config1), //reg3
@@ -61,7 +65,8 @@ LogicCapture captureModule(
 assign channelNumber = 3'd0;
 assign riseNotFall = 1'b1;
 
-assign preTrigger = 18'd5;
+assign preTrigger = 16'h0005;
+assign postTrigger = 16'h000A;
 
 assign ch0 = 2'b00;
 assign ch1 = 2'b10;
@@ -75,18 +80,15 @@ assign ch7 = 2'b00;
 initial
 begin
     #(5)  resetn     <= 1'b1;
-    #(4)  config1[17:0] <= preTrigger;
-    #(4)  config0    <= {ch7,ch6,ch5,ch4,ch3,ch2,ch1,ch0,12'b000000000000, riseNotFall, channelNumber};
+    #(4)  config1[15:0]    <= preTrigger;
+          config1[31:16]   <= postTrigger;
+          config0    <= {ch7,ch6,ch5,ch4,ch3,ch2,ch1,ch0,12'b000000000000, riseNotFall, channelNumber};
     #(20) control[0] <= 1'b1;
     #(8)  datain[0]  <= 1'b1;
           control[0] <= 1'b0;
     #(8)  datain[0]  <= 1'b0;
     #(8)  datain[0]  <= 1'b1;
-    #(8)  datain[0]  <= 1'b0;
-    #(8)  datain[0]  <= 1'b1;
-              datain[3]  <= 1'b1;
-    #(8)  datain[0]  <= 1'b0;
-    #(8)  datain[0]  <= 1'b1;
+          datain[3]  <= 1'b1;
     #(8)  datain[0]  <= 1'b0;
     #(8)  datain[0]  <= 1'b1;
     #(8)  datain[0]  <= 1'b0;
@@ -105,10 +107,14 @@ begin
     #(8)  datain[0]  <= 1'b1;
     #(8)  datain[0]  <= 1'b0;
     #(8)  datain[0]  <= 1'b1;
-    cntr <= 31'd0;
+    #(8)  datain[0]  <= 1'b0;
+    #(8)  datain[0]  <= 1'b1;
+    #(8)  datain[0]  <= 1'b0;
+    #(8)  datain[0]  <= 1'b1;
+            cntr <= 31'd0;
     #(8)  datain[0]  <= 1'b0;
     #(4)   test2      <= 1'b1;
-    #(4)  control[1] <= 1'b1;
+//    #(4)  control[1] <= 1'b1
     #(50)  $finish;
 end
 
@@ -124,7 +130,7 @@ begin
     end
     else
     begin
-        if (cntr > 32'd550000)
+        if (cntr > 32'd200)
             $finish;
         else;
           begin
