@@ -106,6 +106,8 @@ setControlMode = 0x1 for Microblaze control, 0x0 for peripheral control
 #define DATA_SIZE   128
 #define N_THREADS   2
 
+#define BRAM_ADDRESS_SIZE 262144 // Number of addressable bytes in BRAM
+
 typedef struct _LOGIC_CAPTURE_DEVICE{
 	int id;
 	int baseAddr;
@@ -122,7 +124,7 @@ void toHexStr(u32 num, char * buf);
 XStatus initializeHw();
 XStatus initializeLogicCapture(PLOGIC_CAPTURE_DEVICE logCapDev, u32 baseAddr, u32 deviceId);
 
-void uploadMemoryContents(u32 startAdx, u32 adxLength);
+void uploadMemoryContents(u32 startAdx, u32 stopAdx, u32 traceLength);
 
 u32 readStatus(PLOGIC_CAPTURE_DEVICE logCapDev);
 u32 readStatus1(PLOGIC_CAPTURE_DEVICE logCapDev);
@@ -334,7 +336,7 @@ void* StateThread(void *arg)
     u8 state = STATE_INIT;
 	CMD_PARAMS cmdParams;
 	int ret;
-	u8 wigglePatternIdx		= 0;
+//	u8 wigglePatternIdx		= 0;
 
 	u32 sawTrigger = 0;
 	u32 sawPreTrigger = 0;
@@ -343,6 +345,8 @@ void* StateThread(void *arg)
 	int startAddress;
 
 	u32 lastAddress;
+
+	u32 traceSize;
 
 	char numBuff[9];
 
@@ -356,6 +360,14 @@ void* StateThread(void *arg)
 				if (state == STATE_IDLE){
 					gControlReg = 0x0001;
 					writeConfig0(&gLogCapDev,buildConfig0(&cmdParams));
+					sendText("-I- Pre-Trigger Sample Count: ");
+					toHexStr(cmdParams.START.preTriggerSamples, numBuff);
+					sendText(numBuff);
+					sendText("\r\n");
+					sendText("-I- Post-Trigger Sample Count: ");
+					toHexStr(cmdParams.START.postTriggerSamples, numBuff);
+					sendText(numBuff);
+					sendText("\r\n");
 					writeConfig1(&gLogCapDev, (cmdParams.START.postTriggerSamples << 16)| cmdParams.START.preTriggerSamples);
 					writeControl(&gLogCapDev, gControlReg);
 					sleep(100);
@@ -398,10 +410,10 @@ void* StateThread(void *arg)
     		if (gStatusReg & 0x00000001){
                 //Uncommment if you want GPIO to drive datain
                 //
-    			XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, wigglePatternIdx);
-				wigglePatternIdx++;
-				if (wigglePatternIdx > 255)
-					wigglePatternIdx=0;
+//    			XGpio_DiscreteWrite(&gGpioLed, GPIO_LED_CHANNEL, wigglePatternIdx);
+//				wigglePatternIdx++;
+//				if (wigglePatternIdx > 255)
+//					wigglePatternIdx=0;
     		}else{
     			lastAddress = readStatus1(&gLogCapDev);
     			state = STATE_UPLOADING;
@@ -428,8 +440,16 @@ void* StateThread(void *arg)
     			// trigger to fill up pre trigger contents
     			// so just dump whole buffer
     			sendText("-I- Pre-trigger sample buffer not full\r\n");
-    			sendText("-I- Dumping samples from address 0\r\n");
-    			uploadMemoryContents(0, 262144);
+    			toHexStr(lastAddress, numBuff);
+    			sendText("-I- Starting address: 0x00000000\r\n-I- Ending Address: ");
+    			sendText(numBuff);
+    			sendText("\r\n");
+    			traceSize = lastAddress + 1;
+    			toHexStr(traceSize, numBuff);
+    			sendText("-I- Trace Size: ");
+    			sendText(numBuff);
+    			sendText("\r\n");
+    			uploadMemoryContents(0, lastAddress, traceSize);
     		} else {
     			// Need to figure out the proper
     			// address to roll through
@@ -437,7 +457,19 @@ void* StateThread(void *arg)
     			if (startAddress < 0) {
     				startAddress = 262143 + startAddress;
     			}
-    			uploadMemoryContents(startAddress, 262144);
+    			traceSize = cmdParams.START.preTriggerSamples + cmdParams.START.postTriggerSamples;
+    			toHexStr(startAddress, numBuff);
+    			sendText("-I- Starting address: ");
+    			sendText(numBuff);
+    			toHexStr(lastAddress, numBuff);
+    			sendText("\r\n-I- Ending Address: ");
+    			sendText(numBuff);
+    			sendText("\r\n");
+    			toHexStr(traceSize, numBuff);
+    			sendText("-I- Trace Size: ");
+    			sendText(numBuff);
+    			sendText("\r\n");
+    			uploadMemoryContents(startAddress, lastAddress, traceSize);
     		}
     		sendText("-I- Upload Complete!\r\n");
     		state = STATE_INIT;
@@ -451,22 +483,21 @@ void* StateThread(void *arg)
     return NULL;
 }
 
-void uploadMemoryContents(u32 startAdx, u32 adxLength) {
-	u32 maxAdx = adxLength - 1;
+void uploadMemoryContents(u32 startAdx, u32 stopAdx, u32 traceLength) {
 	u8 k;
-	u32 addr;
+	u32 addr = startAdx;
 	BRAM_MUXXED_setControlMode(0x1);
 	XUartLite_SendByte(STDOUT_BASEADDRESS,BINARY_DATA);
 	XUartLite_SendByte(STDOUT_BASEADDRESS,TRACE_DATA);
 	for (k = 0; k  < 4; k++) {
-		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) (adxLength >> (3-k)*8) & 0x000000FF);
+		XUartLite_SendByte(STDOUT_BASEADDRESS, (u8) (traceLength >> (3-k)*8) & 0x000000FF);
 	}
-	for (addr = startAdx; addr <= maxAdx; addr++) {
+	while(addr != stopAdx) {
 		XUartLite_SendByte(STDOUT_BASEADDRESS, BRAM_MUXXED_read(addr));
+		addr = (addr + 1) % BRAM_ADDRESS_SIZE;
 	}
-	for (addr = 0; addr < startAdx; addr++) {
-		XUartLite_SendByte(STDOUT_BASEADDRESS, BRAM_MUXXED_read(addr));
-	}
+	//One more read
+	XUartLite_SendByte(STDOUT_BASEADDRESS, BRAM_MUXXED_read(stopAdx));
 	BRAM_MUXXED_setControlMode(0x0);
 }
 
