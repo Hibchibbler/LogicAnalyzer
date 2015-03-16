@@ -175,9 +175,10 @@ typedef struct _CMD_PARAMS{
 			// 3 bit value to indicate channel
 			// to look for edge on
 			// 1 bit value to indicate rising or falling
-			u8 channelNumber : 3;
-			u8 riseNotFall   : 1;
-			u8 reserved0     : 4;
+			u8 channelNumber   : 3;
+			u8 riseNotFall     : 1;
+			u8 edgeTrigDisable : 1;
+			u8 reserved0       : 3;
 
 			// Byte 2 & 3
 			// Value triggers for all channels
@@ -319,6 +320,7 @@ u32 buildConfig0(CMD_PARAMS * cmdParams) {
 	// config1 = {14'd0, preTriggerSamplesCount}
 	config0 |= cParams.START.channelNumber;
 	config0 |= cParams.START.riseNotFall << 3;
+	config0 |= cParams.START.edgeTrigDisable << 4;
 	config0 |= cParams.START.ch0 << 16;
 	config0 |= cParams.START.ch1 << 18;
 	config0 |= cParams.START.ch2 << 20;
